@@ -1,0 +1,45 @@
+name: CI – Ubuntu Terminal Bootstrap
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t ubuntu-bootstrap-ci .
+
+      - name: Run setup script inside container (CI mode)
+        run: |
+          docker run --rm \
+            -e CI=true \
+            ubuntu-bootstrap-ci \
+            bash -c "
+              cd Ubuntu_Setup &&
+              chmod +x setup.sh &&
+              ./setup.sh
+            "
+
+      - name: Verify installed tools
+        run: |
+          docker run --rm ubuntu-bootstrap-ci bash -c "
+            command -v git &&
+            command -v zsh &&
+            command -v fzf &&
+            command -v nvim &&
+            nvim --version
+          "
