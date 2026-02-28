@@ -103,6 +103,8 @@ fi
 
 # Ensure ~/.local/bin in PATH
 ensure_line 'export PATH="$HOME/.local/bin:$PATH"' ~/.zshrc
+# Ensure PATH for current shell (CI-safe)
+export PATH="$HOME/.local/bin:$PATH"
 
 # ----------------------------------------
 # 5. Powerlevel10k
