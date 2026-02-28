@@ -37,6 +37,7 @@ jobs:
       - name: Verify installed tools
         run: |
           docker run --rm ubuntu-bootstrap-ci bash -c "
+            export PATH=\$HOME/.local/bin:\$PATH &&
             command -v git &&
             command -v zsh &&
             command -v fzf &&
