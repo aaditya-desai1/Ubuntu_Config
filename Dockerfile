@@ -2,9 +2,11 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CI=true
+ENV USER=adios
+ENV HOME=/home/adios
 ENV PATH="/home/adios/.local/bin:${PATH}"
 
-# Base system dependencies (root)
+# Base system deps
 RUN apt update && apt install -y \
     sudo curl git ca-certificates locales fontconfig \
     && rm -rf /var/lib/apt/lists/*
@@ -14,17 +16,16 @@ RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Create non-root user
+# Create user
 RUN useradd -m -s /bin/bash adios \
     && echo "adios ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy setup as root
-WORKDIR /root
-COPY Ubuntu_Setup /root/Ubuntu_Setup
-RUN chmod +x /root/Ubuntu_Setup/setup.sh
+# Copy setup script
+COPY Ubuntu_Setup /Ubuntu_Setup
+RUN chmod +x /Ubuntu_Setup/setup.sh
 
-# 🔥 Bake everything into the image
-RUN /root/Ubuntu_Setup/setup.sh
+# 🔥 RUN SETUP WITH adios HOME (THIS IS THE FIX)
+RUN HOME=/home/adios USER=adios /Ubuntu_Setup/setup.sh
 
 # Runtime user
 USER adios
