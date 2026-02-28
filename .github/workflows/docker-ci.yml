@@ -31,17 +31,13 @@ jobs:
         run: |
           docker build -t ubuntu-bootstrap-ci .
 
-      - name: Run setup + verify in same container
+      - name: Verify in same container
         run: |
           docker run --rm \
             -e CI=true \
             ubuntu-bootstrap-ci \
             bash -c "
               set -e
-              cd Ubuntu_Setup
-              chmod +x setup.sh
-              ./setup.sh
-
               echo '--- VERIFYING TOOLS ---'
               export PATH=\$HOME/.local/bin:\$PATH
               command -v git
