@@ -7,19 +7,27 @@ set -Eeuo pipefail
 NEOVIM_VERSION="v0.10.3"
 LOG_DIR="$HOME/ubuntu-terminal-bootstrap/logs"
 LOG_FILE="$LOG_DIR/setup.log"
-IS_CI=false
 
 mkdir -p "$LOG_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
+# Detect environments
+IS_CI=false
+IS_DOCKER_BUILD=false
+
 if [ -f /.dockerenv ] || [ -n "${CI:-}" ]; then
   IS_CI=true
+fi
+
+if [ "$(id -u)" -eq 0 ]; then
+  IS_DOCKER_BUILD=true
 fi
 
 echo "========================================"
 echo "🚀 Ubuntu Terminal Bootstrap Started"
 echo "🕒 $(date)"
 echo "CI Mode: $IS_CI"
+echo "Docker Build Mode: $IS_DOCKER_BUILD"
 echo "========================================"
 
 # ----------------------------------------
@@ -33,19 +41,30 @@ ensure_line() {
   grep -qxF "$1" "$2" || echo "$1" >>"$2"
 }
 
+as_root() {
+  if [ "$IS_DOCKER_BUILD" = true ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 install_if_missing() {
   if ! dpkg -s "$1" >/dev/null 2>&1; then
-    sudo apt install -y "$1"
+    as_root apt install -y "$1"
   else
     echo "✔ $1 already installed"
   fi
 }
 
+# Ensure PATH for current shell (CI-safe)
+export PATH="$HOME/.local/bin:$PATH"
+
 # ----------------------------------------
 # 1. System update
 # ----------------------------------------
 echo "🔄 Updating system..."
-sudo apt update
+as_root apt update
 
 # ----------------------------------------
 # 2. Basic packages
@@ -63,17 +82,17 @@ for pkg in "${BASIC_PACKAGES[@]}"; do
   install_if_missing "$pkg"
 done
 
-# fd fix (Ubuntu uses fdfind)
-mkdir -p ~/.local/bin
+# fd fix
+mkdir -p "$HOME/.local/bin"
 if command_exists fdfind && ! command_exists fd; then
-  ln -sf "$(which fdfind)" ~/.local/bin/fd
+  ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
 fi
 
 # ----------------------------------------
 # 3. Nerd Font (skip in CI/Docker)
 # ----------------------------------------
-if [ "$IS_CI" = true ]; then
-  echo "⚠️ CI/Docker detected, skipping Nerd Font installation"
+if [ "$IS_CI" = true ] || [ "$IS_DOCKER_BUILD" = true ]; then
+  echo "⚠️ Skipping Nerd Font installation (CI/Docker)"
 else
   echo "🔤 Installing JetBrainsMono Nerd Font..."
   FONT_DIR="$HOME/.local/share/fonts"
@@ -101,10 +120,7 @@ else
   echo "✔ Oh My Zsh already installed"
 fi
 
-# Ensure ~/.local/bin in PATH
-ensure_line 'export PATH="$HOME/.local/bin:$PATH"' ~/.zshrc
-# Ensure PATH for current shell (CI-safe)
-export PATH="$HOME/.local/bin:$PATH"
+ensure_line 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.zshrc"
 
 # ----------------------------------------
 # 5. Powerlevel10k
@@ -118,10 +134,10 @@ else
   echo "✔ Powerlevel10k already installed"
 fi
 
-if grep -q '^ZSH_THEME=' ~/.zshrc; then
-  sed -i 's|^ZSH_THEME=.*|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
+if grep -q '^ZSH_THEME=' "$HOME/.zshrc"; then
+  sed -i 's|^ZSH_THEME=.*|ZSH_THEME="powerlevel10k/powerlevel10k"|' "$HOME/.zshrc"
 else
-  ensure_line 'ZSH_THEME="powerlevel10k/powerlevel10k"' ~/.zshrc
+  ensure_line 'ZSH_THEME="powerlevel10k/powerlevel10k"' "$HOME/.zshrc"
 fi
 
 # ----------------------------------------
@@ -129,21 +145,18 @@ fi
 # ----------------------------------------
 echo "🔍 Setting up fzf..."
 if [ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]; then
-  ensure_line 'source /usr/share/doc/fzf/examples/key-bindings.zsh' ~/.zshrc
-  ensure_line 'source /usr/share/doc/fzf/examples/completion.zsh' ~/.zshrc
+  ensure_line 'source /usr/share/doc/fzf/examples/key-bindings.zsh' "$HOME/.zshrc"
+  ensure_line 'source /usr/share/doc/fzf/examples/completion.zsh' "$HOME/.zshrc"
 fi
 
 # ----------------------------------------
 # 7. Set Zsh as default shell (real machine only)
 # ----------------------------------------
-if [ "$IS_CI" = true ]; then
-  echo "⚠️ CI/Docker detected, skipping chsh"
+if [ "$IS_CI" = true ] || [ "$IS_DOCKER_BUILD" = true ]; then
+  echo "⚠️ Skipping chsh (CI/Docker)"
 else
-  if [ "$SHELL" != "$(which zsh)" ]; then
-    echo "🔁 Setting Zsh as default shell..."
-    chsh -s "$(which zsh)"
-  else
-    echo "✔ Zsh already default shell"
+  if [ "$SHELL" != "$(command -v zsh)" ]; then
+    chsh -s "$(command -v zsh)"
   fi
 fi
 
@@ -157,26 +170,18 @@ NVIM_BIN="$HOME/.local/bin/nvim"
 mkdir -p "$HOME/.local/bin"
 
 if ! command_exists nvim; then
-  if [ "$IS_CI" = true ]; then
-    echo "🐳 Docker/CI detected – using tarball Neovim"
-
+  if [ "$IS_CI" = true ] || [ "$IS_DOCKER_BUILD" = true ]; then
     curl -LO "https://github.com/neovim/neovim/releases/download/${NEOVIM_VERSION}/nvim-linux64.tar.gz"
     rm -rf "$NVIM_ROOT"
     tar -xzf nvim-linux64.tar.gz
     mv nvim-linux64 "$NVIM_ROOT"
     ln -sf "$NVIM_ROOT/bin/nvim" "$NVIM_BIN"
     rm nvim-linux64.tar.gz
-
   else
-    echo "🖥️ Real system detected – using AppImage"
     curl -L "https://github.com/neovim/neovim/releases/download/${NEOVIM_VERSION}/nvim.appimage" \
       -o "$NVIM_BIN"
     chmod +x "$NVIM_BIN"
   fi
-
-  echo "✔ Neovim installed"
-else
-  echo "✔ Neovim already installed"
 fi
 
 # ----------------------------------------
@@ -187,18 +192,17 @@ NVIM_CONFIG="$HOME/.config/nvim"
 
 if [ ! -d "$NVIM_CONFIG" ]; then
   git clone https://github.com/LazyVim/starter "$NVIM_CONFIG"
-else
-  echo "✔ LazyVim already exists"
 fi
 
 # ----------------------------------------
-# 10. Verification (CI critical)
+# 10. Verification
 # ----------------------------------------
 echo "🔎 Verifying installations..."
 command -v git
 command -v zsh
 command -v fzf
 command -v nvim
+nvim --version
 
 # ----------------------------------------
 # Done
@@ -208,10 +212,3 @@ echo "✅ Setup completed successfully"
 echo "🕒 $(date)"
 echo "📄 Log saved to $LOG_FILE"
 echo "========================================"
-
-echo ""
-echo "NEXT STEPS:"
-echo "1. Restart terminal"
-echo "2. Set terminal font to: JetBrainsMono Nerd Font"
-echo "3. Run: zsh"
-echo "4. Run: nvim"
