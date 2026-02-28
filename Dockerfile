@@ -22,3 +22,8 @@ WORKDIR /home/adios
 # Copy bootstrap repo
 COPY --chown=adios:adios Ubuntu_Setup ./Ubuntu_Setup
 RUN chmod +x Ubuntu_Setup/setup.sh
+
+RUN ./Ubuntu_Setup/setup.sh
+
+CMD ["bash"]
+
