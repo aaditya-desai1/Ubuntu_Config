@@ -6,7 +6,7 @@ ENV USER=adios
 ENV HOME=/home/adios
 ENV PATH="/home/adios/.local/bin:${PATH}"
 
-# Base system deps
+# Base dependencies
 RUN apt update && apt install -y \
     sudo curl git ca-certificates locales fontconfig \
     && rm -rf /var/lib/apt/lists/*
@@ -20,14 +20,14 @@ ENV LC_ALL=en_US.UTF-8
 RUN useradd -m -s /bin/bash adios \
     && echo "adios ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy setup script
+# Copy setup
 COPY Ubuntu_Setup /Ubuntu_Setup
 RUN chmod +x /Ubuntu_Setup/setup.sh
 
-# 🔥 RUN SETUP WITH adios HOME (THIS IS THE FIX)
+# Bake configuration
 RUN HOME=/home/adios USER=adios /Ubuntu_Setup/setup.sh
 
-# Runtime user
+# Switch to user
 USER adios
 WORKDIR /home/adios
 

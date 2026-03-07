@@ -1,58 +1,44 @@
-name: CI – Build, Test & Publish Ubuntu Bootstrap Image
+name: CI – Build & Publish Ubuntu Bootstrap Image
 
 on:
   push:
     branches: [ master ]
-  pull_request:
 
 permissions:
   contents: read
-  packages: write   # REQUIRED for GHCR push
+  packages: write
 
 jobs:
   build-test-publish:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        run: |
-          docker build -t ubuntu-bootstrap-ci .
+      - name: Build image
+        run: docker build -t ubuntu-bootstrap .
 
-      - name: Verify in same container
+      - name: Verify baked image
         run: |
-          docker run --rm \
-            -e CI=true \
-            ubuntu-bootstrap-ci \
-            bash -c "
-              set -e
-              echo '--- VERIFYING TOOLS ---'
-              export PATH=\$HOME/.local/bin:\$PATH
-              command -v git
-              command -v zsh
-              command -v fzf
-              command -v nvim
-              nvim --version
-            "
-      - name: Tag image for GHCR
+          docker run --rm ubuntu-bootstrap bash -c "
+            echo '--- VERIFYING TOOLS ---'
+            command -v git
+            command -v zsh
+            command -v fzf
+            command -v nvim
+            nvim --version
+          "
+
+      - name: Push image
         run: |
           IMAGE=ghcr.io/aaditya-desai1/ubuntu-bootstrap:latest
-          docker tag ubuntu-bootstrap-ci $IMAGE
-          echo "Tagged $IMAGE"
-
-      - name: Push image to GHCR
-        run: |
-          IMAGE=ghcr.io/aaditya-desai1/ubuntu-bootstrap:latest
+          docker tag ubuntu-bootstrap $IMAGE
           docker push $IMAGE
